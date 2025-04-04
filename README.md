@@ -137,9 +137,9 @@ If you use DiReCT in your research, please cite:
 
 ```
 @software{direct_rag_2025,
-  author = {Your Name},
+  author = {Waghib Ahmad},
   title = {DiReCT: Diagnostic Reasoning for Clinical Text},
   year = {2025},
-  url = {https://github.com/yourusername/RAG-for-Diagnostic-Reasoning-for-Clinical-Notes-DiReCT-}
+  url = {https://github.com/Waghib/RAG-for-Diagnostic-Reasoning-for-Clinical-Notes-DiReCT-}
 }
 ```
