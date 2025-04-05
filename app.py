@@ -264,7 +264,8 @@ def main():
         with st.spinner("Loading clinical knowledge base... This may take a minute."):
             try:
                 st.session_state.vectorstore = get_vectorstore()
-                st.success("Clinical knowledge base loaded successfully!")
+                # Use custom styled message without the success icon
+                st.markdown("<div style='padding:10px 15px;background-color:rgba(40,167,69,0.2);border-radius:5px;border-left:5px solid rgba(40,167,69,0.8);'>Clinical knowledge base loaded successfully!</div>", unsafe_allow_html=True)
             except Exception as e:
                 st.error(f"Error loading knowledge base: {str(e)}")
                 st.session_state.vectorstore = None
@@ -272,25 +273,24 @@ def main():
     # Custom CSS for modern look with dark theme compatibility
     st.markdown("""
     <style>
-    /* Remove background overrides that conflict with dark theme */
     .stApp {max-width: 1200px; margin: 0 auto;}
     .css-18e3th9 {padding-top: 2rem;}
-    
-    /* Button styling */
     .stButton>button {background-color: #3498db; color: white;}
     .stButton>button:hover {background-color: #2980b9;}
-    
-    /* Chat message styling */
     .chat-message {border-radius: 10px; padding: 10px; margin-bottom: 10px;}
     .chat-message-user {background-color: rgba(52, 152, 219, 0.2); color: inherit;}
     .chat-message-assistant {background-color: rgba(240, 240, 240, 0.2); color: inherit;}
-    
-    /* Source and metrics boxes with dark theme compatibility */
     .source-box {background-color: rgba(255, 255, 255, 0.1); color: inherit; border-radius: 5px; padding: 15px; margin-bottom: 10px; border-left: 5px solid #3498db;}
     .metrics-box {background-color: rgba(255, 255, 255, 0.1); color: inherit; border-radius: 5px; padding: 15px; margin-top: 20px;}
-    
-    /* Feature cards for homepage */
-    .feature-card {background-color: rgba(255, 255, 255, 0.1); color: inherit; border-radius: 10px; padding: 20px; height: 200px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);}
+    .features-container {display: flex; flex-wrap: wrap; gap: 20px; justify-content: center; margin-top: 30px;}
+    .feature-item {flex: 1 1 calc(50% - 20px); min-width: 300px; display: flex; align-items: center; padding: 20px; border-radius: 10px; background: linear-gradient(135deg, rgba(72, 126, 176, 0.1), rgba(72, 126, 176, 0.2)); transition: transform 0.3s, box-shadow 0.3s; border: 1px solid rgba(255, 255, 255, 0.1);}
+    .feature-item:hover {transform: translateY(-5px); box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);}
+    .feature-icon {width: 60px; height: 60px; border-radius: 50%; background: linear-gradient(135deg, #3498db, #2980b9); display: flex; align-items: center; justify-content: center; margin-right: 20px; box-shadow: 0 5px 15px rgba(52, 152, 219, 0.3);}
+    .feature-icon i {font-size: 24px; color: white;}
+    .feature-content {flex: 1;}
+    .feature-content h3 {margin-top: 0; margin-bottom: 10px; color: inherit;}
+    .feature-content p {margin: 0; font-size: 0.9em; color: inherit; opacity: 0.8;}
+    .input-container {margin-bottom: 20px; padding: 15px; border-radius: 10px; background-color: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1);}
     </style>
     """, unsafe_allow_html=True)
 
@@ -342,40 +342,63 @@ def main():
             </div>
             """, unsafe_allow_html=True)
         
-        # Features section
+        # Modern Features section with Streamlit native components
         st.markdown("<br><br>", unsafe_allow_html=True)
         st.markdown("<h2 style='text-align:center;'>Key Features</h2>", unsafe_allow_html=True)
         
-        col1, col2, col3 = st.columns(3)
+        # Create a 2x2 grid for features using Streamlit columns
+        col1, col2 = st.columns(2)
+        
+        # Feature 1
         with col1:
             st.markdown("""
-            <div class='feature-card' style='text-align:center;'>
-                <img src="https://img.icons8.com/color/48/000000/search--v1.png">
-                <h3>Intelligent Retrieval</h3>
+            <div style="background: linear-gradient(135deg, rgba(72, 126, 176, 0.1), rgba(72, 126, 176, 0.2)); 
+                        padding: 20px; border-radius: 10px; height: 100%; 
+                        border: 1px solid rgba(255, 255, 255, 0.1); margin-bottom: 20px;">
+                <h3>🔍 Intelligent Retrieval</h3>
                 <p>Finds the most relevant clinical information from the MIMIC-IV-Ext dataset</p>
             </div>
             """, unsafe_allow_html=True)
-            
+        
+        # Feature 2
         with col2:
             st.markdown("""
-            <div class='feature-card' style='text-align:center;'>
-                <img src="https://img.icons8.com/color/48/000000/brain.png">
-                <h3>Advanced Reasoning</h3>
+            <div style="background: linear-gradient(135deg, rgba(72, 126, 176, 0.1), rgba(72, 126, 176, 0.2)); 
+                        padding: 20px; border-radius: 10px; height: 100%; 
+                        border: 1px solid rgba(255, 255, 255, 0.1); margin-bottom: 20px;">
+                <h3>🧠 Advanced Reasoning</h3>
                 <p>Applies clinical knowledge to generate accurate diagnostic insights</p>
             </div>
             """, unsafe_allow_html=True)
-            
-        with col3:
+        
+        # Feature 3
+        with col1:
             st.markdown("""
-            <div class='feature-card' style='text-align:center;'>
-                <img src="https://img.icons8.com/color/48/000000/document.png">
-                <h3>Source Transparency</h3>
+            <div style="background: linear-gradient(135deg, rgba(72, 126, 176, 0.1), rgba(72, 126, 176, 0.2)); 
+                        padding: 20px; border-radius: 10px; height: 100%; 
+                        border: 1px solid rgba(255, 255, 255, 0.1);">
+                <h3>📄 Source Transparency</h3>
                 <p>Provides references to all clinical sources used in generating responses</p>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        # Feature 4
+        with col2:
+            st.markdown("""
+            <div style="background: linear-gradient(135deg, rgba(72, 126, 176, 0.1), rgba(72, 126, 176, 0.2)); 
+                        padding: 20px; border-radius: 10px; height: 100%; 
+                        border: 1px solid rgba(255, 255, 255, 0.1);">
+                <h3>🌓 Dark/Light Theme Compatible</h3>
+                <p>Optimized interface that works seamlessly in both dark and light themes</p>
             </div>
             """, unsafe_allow_html=True)
 
     # Chat interface
     elif st.session_state.page == 'chat':
+        # Initialize session state for input if not exists
+        if 'user_input' not in st.session_state:
+            st.session_state.user_input = ""
+        
         # Header with clear button
         col1, col2 = st.columns([3, 1])
         with col1:
@@ -384,41 +407,22 @@ def main():
             # Add a clear button in the header
             if st.button("🗑️ Clear Chat"):
                 st.session_state.chat_history = []
+                st.session_state.user_input = ""
                 st.rerun()
-                
+        
         st.markdown("Ask any clinical diagnostic question and get insights based on medical knowledge and patient cases.")
         
-        # Display chat history
-        for i, (query, response) in enumerate(st.session_state.chat_history):
-            st.markdown(f"<div class='chat-message chat-message-user'><b>🧑‍⚕️ You:</b> {query}</div>", unsafe_allow_html=True)
-            
-            st.markdown(f"<div class='chat-message chat-message-assistant'><b>🩺 DiReCT:</b> {response['answer']}</div>", unsafe_allow_html=True)
-            
-            with st.expander("View Sources"):
-                for doc in response["context"]:
-                    st.markdown(f"<div class='source-box'>"
-                              f"<b>Source:</b> {Path(doc.metadata['source']).stem}<br>"
-                              f"<b>Type:</b> {doc.metadata['type']}<br>"
-                              f"<b>Content:</b> {doc.page_content[:300]}...</div>", 
-                              unsafe_allow_html=True)
-            
-            # Show evaluation metrics if available
-            try:
-                eval_scores = evaluate_rag_response(response, embeddings)
-                with st.expander("View Evaluation Metrics"):
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        st.metric("Hit Rate (Top-3)", f"{eval_scores['hit_rate']:.2f}")
-                    with col2:
-                        st.metric("Faithfulness", f"{eval_scores['faithfulness']:.2f}")
-            except Exception as e:
-                st.warning(f"Evaluation metrics unavailable: {str(e)}")
+        # Fixed input area at the top
+        with st.container():
+            st.markdown("<div class='input-container'>", unsafe_allow_html=True)
+            user_input = st.text_area("Ask a clinical question:", st.session_state.user_input, height=100, key="question_input")
+            col1, col2 = st.columns([1, 5])
+            with col1:
+                submit_button = st.button("Submit")
+            st.markdown("</div>", unsafe_allow_html=True)
         
-        # Query input
-        user_input = st.text_area("Ask a clinical question:", height=100)
-        col1, col2 = st.columns([1, 5])
-        with col1:
-            submit_button = st.button("Submit")
+        # Create a container for chat history
+        chat_container = st.container()
         
         # Process query
         if submit_button and user_input:
@@ -434,13 +438,43 @@ def main():
                         response = run_rag_chat(user_input, st.session_state.vectorstore)
                         response["retriever"] = st.session_state.vectorstore.as_retriever()
                         
-                        # Add to chat history
-                        st.session_state.chat_history.append((user_input, response))
+                        # Clear previous chat history and only keep the current response
+                        st.session_state.chat_history = [(user_input, response)]
+                        
+                        # Clear the input field
+                        st.session_state.user_input = ""
                         
                         # Rerun to update UI
                         st.rerun()
                     except Exception as e:
                         st.error(f"Error processing query: {str(e)}")
+        
+        # Display chat history in the container
+        with chat_container:
+            for i, (query, response) in enumerate(st.session_state.chat_history):
+                st.markdown(f"<div class='chat-message chat-message-user'><b>🧑‍⚕️ You:</b> {query}</div>", unsafe_allow_html=True)
+                
+                st.markdown(f"<div class='chat-message chat-message-assistant'><b>🩺 DiReCT:</b> {response['answer']}</div>", unsafe_allow_html=True)
+                
+                with st.expander("View Sources"):
+                    for doc in response["context"]:
+                        st.markdown(f"<div class='source-box'>"
+                                  f"<b>Source:</b> {Path(doc.metadata['source']).stem}<br>"
+                                  f"<b>Type:</b> {doc.metadata['type']}<br>"
+                                  f"<b>Content:</b> {doc.page_content[:300]}...</div>", 
+                                  unsafe_allow_html=True)
+                
+                # Show evaluation metrics if available
+                try:
+                    eval_scores = evaluate_rag_response(response, embeddings)
+                    with st.expander("View Evaluation Metrics"):
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            st.metric("Hit Rate (Top-3)", f"{eval_scores['hit_rate']:.2f}")
+                        with col2:
+                            st.metric("Faithfulness", f"{eval_scores['faithfulness']:.2f}")
+                except Exception as e:
+                    st.warning(f"Evaluation metrics unavailable: {str(e)}")
     
     # About page
     elif st.session_state.page == 'about':
