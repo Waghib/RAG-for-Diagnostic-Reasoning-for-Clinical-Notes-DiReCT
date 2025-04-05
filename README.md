@@ -21,7 +21,9 @@ By combining state-of-the-art language models with domain-specific clinical know
 - **Advanced Reasoning**: Applies clinical knowledge to generate accurate diagnostic insights using large language models
 - **Source Transparency**: Provides references to all clinical sources used in generating responses
 - **Performance Metrics**: Evaluates responses using hit rate and faithfulness metrics
-- **User-Friendly Interface**: Modern Streamlit interface for easy interaction with the system
+- **User-Friendly Interface**: Modern Streamlit interface with dark/light theme compatibility for easy interaction with the system
+- **Persistent Vectorstore**: Optimized performance with disk-cached vectorstore that persists across deployments
+- **Clear Chat Functionality**: Simple one-click option to clear conversation history
 
 ## System Architecture
 
@@ -60,10 +62,12 @@ DiReCT is built on a three-component architecture:
    pip install -r requirements.txt
    ```
 
-4. Create a `.env` file with your API keys:
-   ```
-   GROQ_API_KEY=your_groq_api_key_here
-   ```
+4. Set up your API keys:
+   - For local development: Create a `.env` file with your API keys:
+     ```
+     GROQ_API_KEY=your_groq_api_key_here
+     ```
+   - For Hugging Face Spaces deployment: Add the API key to Spaces secrets
 
 5. Prepare the MIMIC-IV-Ext dataset:
    - Place diagnostic flowcharts in the `Diagnosis_flowchart` directory
@@ -117,9 +121,10 @@ This system is designed as a clinical decision support tool and not as a replace
 ## Technical Details
 
 - **Embedding Model**: Bio_ClinicalBERT for domain-specific text understanding
-- **Vector Database**: FAISS for efficient similarity search
+- **Vector Database**: FAISS for efficient similarity search with disk persistence
 - **LLM**: Llama-3.3-70B for generating medically accurate responses
 - **Framework**: Built with LangChain and Streamlit
+- **Deployment**: Optimized for Hugging Face Spaces with secure API key management
 
 ## License
 

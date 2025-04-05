@@ -1,25 +1,26 @@
 # Core dependencies
-streamlit>=1.31.0
-python-dotenv>=1.0.0
+streamlit==1.31.0
+python-dotenv==1.0.0
 
-# LangChain ecosystem
-langchain>=0.1.0
-langchain-core>=0.1.0
-langchain-community>=0.0.10
-langchain-groq>=0.1.0
+# LangChain ecosystem - using specific versions for compatibility
+langchain==0.1.5
+langchain-core==0.1.15
+langchain-community==0.0.16
+langchain-groq==0.1.5
+langchain-text-splitters==0.0.1
 
 # Embedding and vector storage
-sentence-transformers>=2.2.2
-faiss-cpu>=1.7.4
-huggingface-hub>=0.19.0
+sentence-transformers==2.2.2
+faiss-cpu==1.7.4
+huggingface-hub==0.19.0
 
 # LLM and transformers
-transformers>=4.36.0
-torch>=2.0.0
-numpy>=1.24.0
+transformers==4.36.0
+torch==2.0.0
+numpy==1.24.0
 
 # Utilities
-tqdm>=4.66.0
-pandas>=2.0.0
+tqdm==4.66.0
+pandas==2.0.0
 
 

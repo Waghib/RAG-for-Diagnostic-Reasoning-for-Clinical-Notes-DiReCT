@@ -6,12 +6,13 @@ import torch
 import streamlit as st
 from dotenv import load_dotenv
 from langchain_groq import ChatGroq
-from langchain.embeddings import HuggingFaceEmbeddings
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import FAISS
-from langchain.docstore.document import Document
-from langchain.prompts import ChatPromptTemplate
+from langchain_core.documents import Document
+from langchain_core.prompts import ChatPromptTemplate
 from langchain.chains import create_retrieval_chain
+from langchain.chains.combine_documents import create_stuff_documents_chain
 import numpy as np  
 from sentence_transformers import util
 import time
@@ -19,15 +20,37 @@ import time
 # Set device for model (CUDA if available)
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
-# Load environment variables
+# Load environment variables - works for both local and Hugging Face Spaces
 load_dotenv()
 
 # Set up the clinical assistant LLM
-groq_api_key = os.getenv('GROQ_API_KEY')
-if not groq_api_key:
-    raise ValueError("API Key is not set in the secrets.")
+# Try to get API key from Hugging Face Spaces secrets first, then fall back to .env file
+try:
+    # For Hugging Face Spaces
+    from huggingface_hub.inference_api import InferenceApi
+    import os
+    groq_api_key = os.environ.get('GROQ_API_KEY')
     
-llm = ChatGroq(groq_api_key=groq_api_key, model_name="llama-3.3-70b-versatile")
+    # If not found in environment, try to get from st.secrets (Streamlit Cloud/Spaces)
+    if not groq_api_key and hasattr(st, 'secrets') and 'GROQ_API_KEY' in st.secrets:
+        groq_api_key = st.secrets['GROQ_API_KEY']
+        
+    if not groq_api_key:
+        st.warning("API Key is not set in the secrets. Using a placeholder for UI demonstration.")
+        # For UI demonstration without API key
+        class MockLLM:
+            def invoke(self, prompt):
+                return {"answer": "This is a placeholder response. Please set up your GROQ_API_KEY to get real responses."}
+        llm = MockLLM()
+    else:    
+        llm = ChatGroq(groq_api_key=groq_api_key, model_name="llama-3.3-70b-versatile")
+        
+except Exception as e:
+    st.error(f"Error setting up LLM: {str(e)}")
+    class MockLLM:
+        def invoke(self, prompt):
+            return {"answer": f"Error setting up LLM: {str(e)}. Please check your API key configuration."}
+    llm = MockLLM()
 
 # Set up embeddings for clinical context (Bio_ClinicalBERT)
 embeddings = HuggingFaceEmbeddings(
@@ -38,38 +61,74 @@ embeddings = HuggingFaceEmbeddings(
 def load_clinical_data():
     """Load both flowcharts and patient cases"""
     docs = []
+    
+    # Get the absolute path to the current script
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    
+    # Try to handle potential errors with file loading
+    try:
+        # Load diagnosis flowcharts
+        flowchart_dir = os.path.join(current_dir, "Diagnosis_flowchart")
+        if os.path.exists(flowchart_dir):
+            for fpath in glob.glob(os.path.join(flowchart_dir, "*.json")):
+                try:
+                    with open(fpath, 'r', encoding='utf-8') as f:
+                        data = json.load(f)
+                        content = f"""
+                        DIAGNOSTIC FLOWCHART: {Path(fpath).stem}
+                        Diagnostic Path: {data.get('diagnostic', 'N/A')}
+                        Key Criteria: {data.get('knowledge', 'N/A')}
+                        """
+                        docs.append(Document(
+                            page_content=content,
+                            metadata={"source": fpath, "type": "flowchart"}
+                        ))
+                except Exception as e:
+                    st.warning(f"Error loading flowchart file {fpath}: {str(e)}")
+        else:
+            st.warning(f"Flowchart directory not found at {flowchart_dir}")
 
-    # Load diagnosis flowcharts
-    for fpath in glob.glob("./Diagnosis_flowchart/*.json"):
-        with open(fpath) as f:
-            data = json.load(f)
-            content = f"""
-            DIAGNOSTIC FLOWCHART: {Path(fpath).stem}
-            Diagnostic Path: {data['diagnostic']}
-            Key Criteria: {data['knowledge']}
-            """
+        # Load patient cases
+        finished_dir = os.path.join(current_dir, "Finished")
+        if os.path.exists(finished_dir):
+            for category_dir in glob.glob(os.path.join(finished_dir, "*")):
+                if os.path.isdir(category_dir):
+                    for case_file in glob.glob(os.path.join(category_dir, "*.json")):
+                        try:
+                            with open(case_file, 'r', encoding='utf-8') as f:
+                                case_data = json.load(f)
+                                notes = "\n".join(
+                                    f"{k}: {v}" for k, v in case_data.items() if k.startswith("input")
+                                )
+                                docs.append(Document(
+                                    page_content=f"""
+                                    PATIENT CASE: {Path(case_file).stem}
+                                    Category: {Path(category_dir).name}
+                                    Notes: {notes}
+                                    """,
+                                    metadata={"source": case_file, "type": "patient_case"}
+                                ))
+                        except Exception as e:
+                            st.warning(f"Error loading case file {case_file}: {str(e)}")
+        else:
+            st.warning(f"Finished directory not found at {finished_dir}")
+            
+        # If no documents were loaded, add a sample document for testing
+        if not docs:
+            st.warning("No clinical data files found. Using sample data for demonstration.")
             docs.append(Document(
-                page_content=content,
-                metadata={"source": fpath, "type": "flowchart"}
+                page_content="""SAMPLE CLINICAL DATA: This is sample data for demonstration purposes.
+                This application requires clinical data files to be present in the correct directories.
+                Please ensure the Diagnosis_flowchart and Finished directories exist with proper JSON files.""",
+                metadata={"source": "sample", "type": "sample"}
             ))
-
-    # Load patient cases
-    for category_dir in glob.glob("./Finished/*"):
-        if os.path.isdir(category_dir):
-            for case_file in glob.glob(f"{category_dir}/*.json"):
-                with open(case_file) as f:
-                    case_data = json.load(f)
-                    notes = "\n".join(
-                        f"{k}: {v}" for k, v in case_data.items() if k.startswith("input")
-                    )
-                    docs.append(Document(
-                        page_content=f"""
-                        PATIENT CASE: {Path(case_file).stem}
-                        Category: {Path(category_dir).name}
-                        Notes: {notes}
-                        """,
-                        metadata={"source": case_file, "type": "patient_case"}
-                    ))
+    except Exception as e:
+        st.error(f"Error loading clinical data: {str(e)}")
+        # Add a fallback document
+        docs.append(Document(
+            page_content="Error loading clinical data. This is a fallback document for demonstration purposes.",
+            metadata={"source": "error", "type": "error"}
+        ))
     return docs
 
 def build_vectorstore():
@@ -80,35 +139,82 @@ def build_vectorstore():
     vectorstore = FAISS.from_documents(splits, embeddings)
     return vectorstore
 
-vectorstore = build_vectorstore()
+# Path for saving/loading the vectorstore
+def get_vectorstore_path():
+    """Get the path for saving/loading the vectorstore"""
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    return os.path.join(current_dir, "vectorstore")
+
+# Initialize vectorstore with disk persistence
+@st.cache_resource(show_spinner="Loading clinical knowledge base...")
+def get_vectorstore():
+    """Get or create the vectorstore with disk persistence"""
+    vectorstore_path = get_vectorstore_path()
+    
+    # Try to load from disk first
+    try:
+        if os.path.exists(vectorstore_path):
+            st.info("Loading vectorstore from disk...")
+            # Set allow_dangerous_deserialization to True since we trust our own vectorstore files
+            return FAISS.load_local(vectorstore_path, embeddings, allow_dangerous_deserialization=True)
+    except Exception as e:
+        st.warning(f"Could not load vectorstore from disk: {str(e)}. Building new vectorstore.")
+    
+    # If loading fails or doesn't exist, build a new one
+    st.info("Building new vectorstore...")
+    vectorstore = build_vectorstore()
+    
+    # Save to disk for future use
+    try:
+        os.makedirs(vectorstore_path, exist_ok=True)
+        vectorstore.save_local(vectorstore_path)
+        st.success("Vectorstore saved to disk for future use")
+    except Exception as e:
+        st.warning(f"Could not save vectorstore to disk: {str(e)}")
+    
+    return vectorstore
 
 def run_rag_chat(query, vectorstore):
     """Run the Retrieval-Augmented Generation (RAG) for clinical questions"""
-    retriever = vectorstore.as_retriever()
+    try:
+        retriever = vectorstore.as_retriever()
 
-    prompt_template = ChatPromptTemplate.from_template("""
-    You are a clinical assistant AI. Based on the following clinical context, provide a reasoned and medically sound answer to the question.
+        prompt_template = ChatPromptTemplate.from_template("""
+        You are a clinical assistant AI. Based on the following clinical context, provide a reasoned and medically sound answer to the question.
 
-    <context>
-    {context}
-    </context>
+        <context>
+        {context}
+        </context>
 
-    Question: {input}
+        Question: {input}
 
-    Answer:
-    """)
+        Answer:
+        """)
 
-    retrieved_docs = retriever.invoke(query, k=3)
-    retrieved_context = "\n".join([doc.page_content for doc in retrieved_docs])
+        retrieved_docs = retriever.invoke(query, k=3)
+        retrieved_context = "\n".join([doc.page_content for doc in retrieved_docs])
 
-    chain = create_retrieval_chain(
-        retriever,
-        create_stuff_documents_chain(llm, prompt_template)
-    )
+        # Create document chain first
+        document_chain = create_stuff_documents_chain(llm, prompt_template)
+        
+        # Then create retrieval chain
+        chain = create_retrieval_chain(retriever, document_chain)
 
-    response = chain.invoke({"input": query, "context": retrieved_context})
-
-    return response
+        # Invoke the chain
+        response = chain.invoke({"input": query})
+        
+        # Add retrieved documents to response for transparency
+        response["context"] = retrieved_docs
+        
+        return response
+    except Exception as e:
+        st.error(f"Error in RAG processing: {str(e)}")
+        # Return a fallback response
+        return {
+            "answer": f"I encountered an error processing your query: {str(e)}",
+            "context": [],
+            "input": query
+        }
 
 def calculate_hit_rate(retriever, query, expected_docs, k=3):
     """Calculate the hit rate for top-k retrieved documents"""
@@ -152,19 +258,39 @@ def main():
         layout="wide",
         initial_sidebar_state="expanded"
     )
+    
+    # Load vectorstore only once using session state
+    if 'vectorstore' not in st.session_state:
+        with st.spinner("Loading clinical knowledge base... This may take a minute."):
+            try:
+                st.session_state.vectorstore = get_vectorstore()
+                st.success("Clinical knowledge base loaded successfully!")
+            except Exception as e:
+                st.error(f"Error loading knowledge base: {str(e)}")
+                st.session_state.vectorstore = None
 
-    # Custom CSS for modern look
+    # Custom CSS for modern look with dark theme compatibility
     st.markdown("""
     <style>
-    .main {background-color: #f8f9fa;}
+    /* Remove background overrides that conflict with dark theme */
     .stApp {max-width: 1200px; margin: 0 auto;}
-    .css-1v3fvcr {background-color: #f8f9fa;}
     .css-18e3th9 {padding-top: 2rem;}
+    
+    /* Button styling */
     .stButton>button {background-color: #3498db; color: white;}
     .stButton>button:hover {background-color: #2980b9;}
-    .source-box {background-color: #ffffff; border-radius: 5px; padding: 15px; margin-bottom: 10px; border-left: 5px solid #3498db;}
-    .metrics-box {background-color: #ffffff; border-radius: 5px; padding: 15px; margin-top: 20px;}
-    h1, h2, h3 {color: #2c3e50;}
+    
+    /* Chat message styling */
+    .chat-message {border-radius: 10px; padding: 10px; margin-bottom: 10px;}
+    .chat-message-user {background-color: rgba(52, 152, 219, 0.2); color: inherit;}
+    .chat-message-assistant {background-color: rgba(240, 240, 240, 0.2); color: inherit;}
+    
+    /* Source and metrics boxes with dark theme compatibility */
+    .source-box {background-color: rgba(255, 255, 255, 0.1); color: inherit; border-radius: 5px; padding: 15px; margin-bottom: 10px; border-left: 5px solid #3498db;}
+    .metrics-box {background-color: rgba(255, 255, 255, 0.1); color: inherit; border-radius: 5px; padding: 15px; margin-top: 20px;}
+    
+    /* Feature cards for homepage */
+    .feature-card {background-color: rgba(255, 255, 255, 0.1); color: inherit; border-radius: 10px; padding: 20px; height: 200px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);}
     </style>
     """, unsafe_allow_html=True)
 
@@ -206,7 +332,7 @@ def main():
             st.markdown("""<br>""", unsafe_allow_html=True)
             if st.button("Get Started", key="get_started"):
                 st.session_state.page = 'chat'
-                st.experimental_rerun()
+                st.rerun()
         
         with col2:
             # Animated medical icon
@@ -223,7 +349,7 @@ def main():
         col1, col2, col3 = st.columns(3)
         with col1:
             st.markdown("""
-            <div style='text-align:center;padding:20px;background-color:white;border-radius:10px;height:200px;'>
+            <div class='feature-card' style='text-align:center;'>
                 <img src="https://img.icons8.com/color/48/000000/search--v1.png">
                 <h3>Intelligent Retrieval</h3>
                 <p>Finds the most relevant clinical information from the MIMIC-IV-Ext dataset</p>
@@ -232,7 +358,7 @@ def main():
             
         with col2:
             st.markdown("""
-            <div style='text-align:center;padding:20px;background-color:white;border-radius:10px;height:200px;'>
+            <div class='feature-card' style='text-align:center;'>
                 <img src="https://img.icons8.com/color/48/000000/brain.png">
                 <h3>Advanced Reasoning</h3>
                 <p>Applies clinical knowledge to generate accurate diagnostic insights</p>
@@ -241,7 +367,7 @@ def main():
             
         with col3:
             st.markdown("""
-            <div style='text-align:center;padding:20px;background-color:white;border-radius:10px;height:200px;'>
+            <div class='feature-card' style='text-align:center;'>
                 <img src="https://img.icons8.com/color/48/000000/document.png">
                 <h3>Source Transparency</h3>
                 <p>Provides references to all clinical sources used in generating responses</p>
@@ -250,14 +376,23 @@ def main():
 
     # Chat interface
     elif st.session_state.page == 'chat':
-        st.markdown("<h1>Clinical Diagnostic Assistant</h1>", unsafe_allow_html=True)
+        # Header with clear button
+        col1, col2 = st.columns([3, 1])
+        with col1:
+            st.markdown("<h1>Clinical Diagnostic Assistant</h1>", unsafe_allow_html=True)
+        with col2:
+            # Add a clear button in the header
+            if st.button("🗑️ Clear Chat"):
+                st.session_state.chat_history = []
+                st.rerun()
+                
         st.markdown("Ask any clinical diagnostic question and get insights based on medical knowledge and patient cases.")
         
         # Display chat history
         for i, (query, response) in enumerate(st.session_state.chat_history):
-            st.markdown(f"<div style='background-color:#e6f7ff;padding:10px;border-radius:5px;margin-bottom:10px;'><b>🧑‍⚕️ You:</b> {query}</div>", unsafe_allow_html=True)
+            st.markdown(f"<div class='chat-message chat-message-user'><b>🧑‍⚕️ You:</b> {query}</div>", unsafe_allow_html=True)
             
-            st.markdown(f"<div style='background-color:#f0f0f0;padding:10px;border-radius:5px;margin-bottom:10px;'><b>🩺 DiReCT:</b> {response['answer']}</div>", unsafe_allow_html=True)
+            st.markdown(f"<div class='chat-message chat-message-assistant'><b>🩺 DiReCT:</b> {response['answer']}</div>", unsafe_allow_html=True)
             
             with st.expander("View Sources"):
                 for doc in response["context"]:
@@ -287,19 +422,25 @@ def main():
         
         # Process query
         if submit_button and user_input:
-            with st.spinner("Analyzing clinical data..."):
-                # Add a small delay for UX
-                time.sleep(0.5)
-                
-                # Run RAG
-                response = run_rag_chat(user_input, vectorstore)
-                response["retriever"] = vectorstore.as_retriever()
-                
-                # Add to chat history
-                st.session_state.chat_history.append((user_input, response))
-                
-                # Rerun to update UI
-                st.experimental_rerun()
+            if st.session_state.vectorstore is None:
+                st.error("Knowledge base not loaded. Please refresh the page and try again.")
+            else:
+                with st.spinner("Analyzing clinical data..."):
+                    try:
+                        # Add a small delay for UX
+                        time.sleep(0.5)
+                        
+                        # Run RAG
+                        response = run_rag_chat(user_input, st.session_state.vectorstore)
+                        response["retriever"] = st.session_state.vectorstore.as_retriever()
+                        
+                        # Add to chat history
+                        st.session_state.chat_history.append((user_input, response))
+                        
+                        # Rerun to update UI
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Error processing query: {str(e)}")
     
     # About page
     elif st.session_state.page == 'about':
